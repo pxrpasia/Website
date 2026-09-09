@@ -7,7 +7,7 @@ Pages:
 - departments.html — All Departments
 - about.html — About Us
 - more.html — Rules, FAQ, Whitelist
-- config.html — Discord dashboard placeholder
+- dashboard.html — Discord dashboard placeholder
 
 The loading animation is eased and smooth, navigation categories open separate pages, and the floating scroll-to-top control is responsive.
 

@@ -130,3 +130,23 @@ if(document.readyState==='loading'){
 }else{
   startPrimeXLivePlayers();
 }
+
+// Smooth drop animation for the dedicated Server Rules page.
+function initRuleDrops(){
+  document.querySelectorAll('.rule-drop-toggle').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const item=btn.closest('.rule-drop');
+      const willOpen=!item.classList.contains('is-open');
+      // Keep the rules clean: one expanded item at a time.
+      document.querySelectorAll('.rule-drop.is-open').forEach(openItem=>{
+        if(openItem!==item){
+          openItem.classList.remove('is-open');
+          openItem.querySelector('.rule-drop-toggle')?.setAttribute('aria-expanded','false');
+        }
+      });
+      item.classList.toggle('is-open',willOpen);
+      btn.setAttribute('aria-expanded',String(willOpen));
+    });
+  });
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initRuleDrops,{once:true}); else initRuleDrops();
