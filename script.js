@@ -45,3 +45,47 @@ function init(){
   const page=document.body.dataset.page;
   document.querySelectorAll('[data-page]').forEach(a=>a.classList.toggle('active',a.dataset.page===page));
 }
+
+// Live FiveM player counter for Prime X Roleplay.
+// The public CFX join code is used through a read-only server lookup API.
+async function updateLivePlayers(){
+  const countEl=document.querySelector('#livePlayers');
+  const maxEl=document.querySelector('#maxPlayers');
+  const statusEl=document.querySelector('#serverStatus');
+  const dot=document.querySelector('#serverDot');
+  if(!countEl || !maxEl || !statusEl) return;
+
+  const setState=(online,count,max)=>{
+    countEl.textContent=Number.isFinite(count)?count:'--';
+    maxEl.textContent=Number.isFinite(max)?max:'--';
+    statusEl.textContent=online?'ONLINE':'OFFLINE';
+    if(dot){
+      dot.classList.toggle('server-offline',!online);
+      dot.classList.toggle('server-online',online);
+    }
+  };
+
+  try{
+    const response=await fetch('https://api.cfxfind.com/v1/servers/89e8ov',{headers:{Accept:'application/json'},cache:'no-store'});
+    if(!response.ok) throw new Error('lookup failed');
+    const snapshot=await response.json();
+    const players=snapshot?.data?.players;
+    const count=Number(players?.count);
+    const max=Number(players?.max);
+    if(!Number.isFinite(count)) throw new Error('player count unavailable');
+    setState(true,count,Number.isFinite(max)?max:0);
+  }catch(error){
+    setState(false,NaN,NaN);
+  }
+}
+
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',()=>{
+    updateLivePlayers();
+    window.setInterval(updateLivePlayers,60000);
+  },{once:true});
+}else{
+  updateLivePlayers();
+  window.setInterval(updateLivePlayers,60000);
+}
+

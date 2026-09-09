@@ -1,1 +1,1 @@
-window.PRIME_X_CONFIG={discordInvite:"https://discord.com/",oauthUrl:""};
+window.PRIME_X_CONFIG={discordInvite:"https://discord.gg/ETNDzfXbaB",oauthUrl:""};
