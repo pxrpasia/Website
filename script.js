@@ -47,8 +47,10 @@ function init(){
 }
 
 // Live FiveM player counter for Prime X Roleplay.
+// Uses CFXR's live SSE stream (updates every ~30s) with a JSON fallback.
 const PRIME_X_CFX_CODE='89e8ov';
-let primeXLiveTimer=null;
+let primeXLiveStream=null;
+let primeXLiveFallbackTimer=null;
 
 function setPrimeXLiveState(online,count,max){
   const countEl=document.querySelector('#livePlayers');
@@ -56,9 +58,12 @@ function setPrimeXLiveState(online,count,max){
   const statusEl=document.querySelector('#serverStatus');
   const dot=document.querySelector('#serverDot');
   if(!countEl || !maxEl || !statusEl) return;
-  const n=Number(count), m=Number(max);
-  countEl.textContent=Number.isFinite(n) && n>=0 ? String(Math.floor(n)) : '--';
-  maxEl.textContent=Number.isFinite(m) && m>0 ? String(Math.floor(m)) : '64';
+
+  // Do not turn a valid zero into OFFLINE; 0 is a real player count.
+  const validCount=Number.isFinite(Number(count));
+  const validMax=Number.isFinite(Number(max)) && Number(max)>0;
+  countEl.textContent=validCount?String(Number(count)):'--';
+  maxEl.textContent=validMax?String(Number(max)):'--';
   statusEl.textContent=online?'ONLINE':'OFFLINE';
   if(dot){
     dot.classList.toggle('server-offline',!online);
@@ -68,21 +73,60 @@ function setPrimeXLiveState(online,count,max){
 
 async function fetchPrimeXLiveOnce(){
   try{
-    const r=await fetch(`https://cfxr.cc/api/resolve/${PRIME_X_CFX_CODE}?fields=name,players,maxPlayers`,{cache:'no-store'});
-    if(!r.ok) throw new Error('CFXR '+r.status);
-    const d=await r.json();
-    const n=Number(d?.players), m=Number(d?.maxPlayers);
-    if(!Number.isFinite(n) || n<0) throw new Error('No player count');
-    setPrimeXLiveState(d?.online!==false,n,Number.isFinite(m)&&m>0?m:64);
+    const response=await fetch(`https://cfxr.cc/api/resolve/${PRIME_X_CFX_CODE}?fields=name,players,maxPlayers`,{cache:'no-store'});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    const count=Number(data?.players);
+    const max=Number(data?.maxPlayers);
+    const online=(data?.online===true) || (Number.isFinite(count) && count>=0 && Number.isFinite(max) && max>0);
+    if(!Number.isFinite(count) || !Number.isFinite(max) || max<=0) throw new Error('incomplete player data');
+    setPrimeXLiveState(online,count,max);
     return true;
-  }catch(e){ return false; }
+  }catch(e){
+    return false;
+  }
 }
 
 function startPrimeXLivePlayers(){
-  if(!document.querySelector('#livePlayers')) return;
+  const countEl=document.querySelector('#livePlayers');
+  const maxEl=document.querySelector('#maxPlayers');
+  const statusEl=document.querySelector('#serverStatus');
+  if(!countEl || !maxEl || !statusEl) return;
+
+  // First request gives an immediate value while the live stream connects.
   fetchPrimeXLiveOnce();
-  if(primeXLiveTimer) clearInterval(primeXLiveTimer);
-  primeXLiveTimer=setInterval(fetchPrimeXLiveOnce,30000);
+
+  if(typeof EventSource!=='undefined'){
+    try{
+      primeXLiveStream?.close();
+      primeXLiveStream=new EventSource(`https://cfxr.cc/api/servers/${PRIME_X_CFX_CODE}/live`);
+      primeXLiveStream.addEventListener('update',event=>{
+        try{
+          const data=JSON.parse(event.data||'{}');
+          const count=Number(data.players);
+          const max=Number(data.maxPlayers);
+          if(Number.isFinite(count) && Number.isFinite(max) && max>0){
+            setPrimeXLiveState(data.online!==false,count,max);
+          }
+        }catch(e){}
+      });
+      primeXLiveStream.onerror=()=>{
+        // CFXR closes the stream after a few minutes; EventSource reconnects automatically.
+        // Keep a normal poll running as a backup in case the browser blocks SSE.
+        if(!primeXLiveFallbackTimer){
+          primeXLiveFallbackTimer=window.setInterval(fetchPrimeXLiveOnce,30000);
+        }
+      };
+    }catch(e){
+      window.setInterval(fetchPrimeXLiveOnce,30000);
+    }
+  }else{
+    window.setInterval(fetchPrimeXLiveOnce,30000);
+  }
 }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',startPrimeXLivePlayers,{once:true});
-else startPrimeXLivePlayers();
+
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',startPrimeXLivePlayers,{once:true});
+}else{
+  startPrimeXLivePlayers();
+}

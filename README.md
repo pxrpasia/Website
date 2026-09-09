@@ -1,16 +1,14 @@
 # Prime X Roleplay Website
+GitHub Pages-ready multi-page website.
 
-Upload the contents of `New folder` to the GitHub Pages repository root.
+Pages:
+- index.html — Home
+- server-book.html — Server Book
+- departments.html — All Departments
+- about.html — About Us
+- more.html — Rules, FAQ, Whitelist
+- config.html — Discord dashboard placeholder
 
-Clean routes:
-- /
-- /server-book/
-- /departments/
-- /packages/
-- /gang-packages/
-- /memberships/
-- /about/
-- /rules/
-- /more/
+The loading animation is eased and smooth, navigation categories open separate pages, and the floating scroll-to-top control is responsive.
 
-Discord dashboard/verification has been removed.
+Discord OAuth requires a secure serverless backend. Do not place a Discord client secret in frontend files.
