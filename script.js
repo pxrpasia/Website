@@ -47,45 +47,70 @@ function init(){
 }
 
 // Live FiveM player counter for Prime X Roleplay.
-// The public CFX join code is used through a read-only server lookup API.
-async function updateLivePlayers(){
+// Uses CFXR's CFX-re.livedata resolver with CORS support.
+// Join code: cfx.re/join/89e8ov
+const SERVER_JOIN_CODE='89e8ov';
+const SERVER_MAX_FALLBACK=64;
+let liveStream;
+
+function renderLive(online,count,max){
   const countEl=document.querySelector('#livePlayers');
   const maxEl=document.querySelector('#maxPlayers');
   const statusEl=document.querySelector('#serverStatus');
   const dot=document.querySelector('#serverDot');
   if(!countEl || !maxEl || !statusEl) return;
 
-  const setState=(online,count,max)=>{
-    countEl.textContent=Number.isFinite(count)?count:'--';
-    maxEl.textContent=Number.isFinite(max)?max:'--';
-    statusEl.textContent=online?'ONLINE':'OFFLINE';
-    if(dot){
-      dot.classList.toggle('server-offline',!online);
-      dot.classList.toggle('server-online',online);
-    }
-  };
+  countEl.textContent=Number.isFinite(count)?String(count):'--';
+  maxEl.textContent=Number.isFinite(max)&&max>0?String(max):String(SERVER_MAX_FALLBACK);
+  statusEl.textContent=online?'ONLINE':'OFFLINE';
+  if(dot){
+    dot.classList.toggle('server-offline',!online);
+    dot.classList.toggle('server-online',online);
+  }
+}
 
+async function fetchLivePlayers(){
   try{
-    const response=await fetch('https://api.cfxfind.com/v1/servers/89e8ov',{headers:{Accept:'application/json'},cache:'no-store'});
-    if(!response.ok) throw new Error('lookup failed');
-    const snapshot=await response.json();
-    const players=snapshot?.data?.players;
-    const count=Number(players?.count);
-    const max=Number(players?.max);
-    if(!Number.isFinite(count)) throw new Error('player count unavailable');
-    setState(true,count,Number.isFinite(max)?max:0);
+    const url=`https://cfxr.cc/api/resolve/${SERVER_JOIN_CODE}?fields=name,players,maxPlayers`;
+    const response=await fetch(url,{headers:{Accept:'application/json'},cache:'no-store'});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    const count=Number(data?.players);
+    const max=Number(data?.maxPlayers);
+    if(!Number.isFinite(count)) throw new Error('Player count unavailable');
+    renderLive(true,count,Number.isFinite(max)?max:SERVER_MAX_FALLBACK);
+    return true;
   }catch(error){
-    setState(false,NaN,NaN);
+    renderLive(false,NaN,SERVER_MAX_FALLBACK);
+    return false;
+  }
+}
+
+function startLivePlayerStream(){
+  if(!document.querySelector('#livePlayers')) return;
+  fetchLivePlayers();
+
+  // CFXR sends a live update roughly every 30 seconds.
+  try{
+    liveStream=new EventSource(`https://cfxr.cc/api/servers/${SERVER_JOIN_CODE}/live`);
+    liveStream.addEventListener('update',event=>{
+      try{
+        const data=JSON.parse(event.data);
+        renderLive(Boolean(data?.online),Number(data?.players),Number(data?.maxPlayers)||SERVER_MAX_FALLBACK);
+      }catch(_){}
+    });
+    liveStream.onerror=()=>{
+      // EventSource may reconnect automatically; fetch keeps the card useful meanwhile.
+      fetchLivePlayers();
+    };
+  }catch(_){
+    // Fallback polling if EventSource is unavailable.
+    window.setInterval(fetchLivePlayers,30000);
   }
 }
 
 if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',()=>{
-    updateLivePlayers();
-    window.setInterval(updateLivePlayers,60000);
-  },{once:true});
+  document.addEventListener('DOMContentLoaded',startLivePlayerStream,{once:true});
 }else{
-  updateLivePlayers();
-  window.setInterval(updateLivePlayers,60000);
+  startLivePlayerStream();
 }
-
